@@ -66,6 +66,13 @@ import { createExtractTool } from '@/lib/tools/extraction/ExtractTool';
 import { createResultTool } from '@/lib/tools/result/ResultTool';
 import { createHumanInputTool } from '@/lib/tools/utils/HumanInputTool';
 import { createDateTool } from '@/lib/tools/utility/DateTool';
+import { createSummarizeTabsTool } from '@/lib/tools/tab/SummarizeTabsTool';
+import { createPageNotesTool } from '@/lib/tools/utility/PageNotesTool';
+import { createSessionMemoryTool } from '@/lib/tools/utility/SessionMemoryTool';
+import { createTranslateTool } from '@/lib/tools/utility/TranslateTool';
+import { createFactCheckTool } from '@/lib/tools/utility/FactCheckTool';
+import { createReadingListTool } from '@/lib/tools/utility/ReadingListTool';
+import { createHistorySearchTool } from '@/lib/tools/utility/HistorySearchTool';
 import { createMCPTool } from '@/lib/tools/mcp/MCPTool';
 import { generateSystemPrompt, generateSingleTurnExecutionPrompt } from './BrowserAgent.prompt';
 import { AIMessage, AIMessageChunk } from '@langchain/core/messages';
@@ -302,6 +309,19 @@ export class BrowserAgent {
     this.toolManager.register(createExtractTool(this.executionContext));
     this.toolManager.register(createHumanInputTool(this.executionContext));
     this.toolManager.register(createDateTool(this.executionContext));
+
+    // Tab tools (extended)
+    this.toolManager.register(createSummarizeTabsTool(this.executionContext));
+
+    // Knowledge & memory tools
+    this.toolManager.register(createPageNotesTool(this.executionContext));
+    this.toolManager.register(createSessionMemoryTool(this.executionContext));
+    this.toolManager.register(createReadingListTool(this.executionContext));
+    this.toolManager.register(createHistorySearchTool(this.executionContext));
+
+    // Content analysis tools
+    this.toolManager.register(createTranslateTool(this.executionContext));
+    this.toolManager.register(createFactCheckTool(this.executionContext));
     
     // Result tool
     this.toolManager.register(createResultTool(this.executionContext));
