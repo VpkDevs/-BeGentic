@@ -628,24 +628,37 @@ export const MessageItem = memo<MessageItemProps>(function MessageItem({ message
           
           {/* Copy button for assistant messages */}
           {message.role === 'assistant' && (
-            <button
-              onClick={handleCopyMessage}
-              className={cn(
-                'absolute top-1 right-1 p-1.5 rounded-md transition-all duration-200',
-                'opacity-0 group-hover:opacity-100',
-                'hover:bg-muted/80 active:bg-muted',
-                'text-muted-foreground hover:text-foreground',
-                'focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-brand/20'
-              )}
-              title={isCopied ? 'Copied!' : 'Copy response'}
-              aria-label={isCopied ? 'Copied to clipboard' : 'Copy response to clipboard'}
-            >
-              {isCopied ? (
-                <Check className="h-3.5 w-3.5 text-green-600" />
-              ) : (
-                <Copy className="h-3.5 w-3.5" />
-              )}
-            </button>
+            <>
+              <button
+                onClick={handleCopyMessage}
+                className={cn(
+                  'absolute top-1 right-1 p-1.5 rounded-md transition-all duration-200',
+                  'opacity-0 group-hover:opacity-100',
+                  'hover:bg-muted/80 active:bg-muted',
+                  'text-muted-foreground hover:text-foreground',
+                  'focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-brand/20'
+                )}
+                title={isCopied ? 'Copied!' : 'Copy response'}
+                aria-label={isCopied ? 'Copied to clipboard' : 'Copy response to clipboard'}
+              >
+                {isCopied ? (
+                  <Check className="h-3.5 w-3.5 text-green-600" />
+                ) : (
+                  <Copy className="h-3.5 w-3.5" />
+                )}
+              </button>
+              {/* Reading time estimator – only show for longer responses */}
+              {(() => {
+                const wordCount = message.content.trim().split(/\s+/).filter(Boolean).length
+                if (wordCount < 100) return null
+                const minutes = Math.ceil(wordCount / 200)
+                return (
+                  <div className="mt-1.5 text-xs text-muted-foreground/60 select-none">
+                    ~{minutes} min read · {wordCount.toLocaleString()} words
+                  </div>
+                )
+              })()}
+            </>
           )}
         </div>
       )}

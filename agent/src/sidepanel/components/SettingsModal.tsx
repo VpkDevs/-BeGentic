@@ -3,7 +3,7 @@ import { Button } from '@/sidepanel/components/ui/button'
 import { Slider } from './ui/slider'
 import { cn } from '@/sidepanel/lib/utils'
 import { z } from 'zod'
-import { X, HelpCircle, ExternalLink, Monitor } from 'lucide-react'
+import { X, HelpCircle, ExternalLink, Monitor, ShieldOff, Plus, Trash2 } from 'lucide-react'
 import { useSettingsStore } from '@/sidepanel/stores/settingsStore'
 import { useSidePanelPortMessaging } from '@/sidepanel/hooks/useSidePanelPortMessaging'
 import { MessageType } from '@/lib/types/messaging'
@@ -21,9 +21,10 @@ const SettingsModalPropsSchema = z.object({
 type SettingsModalProps = z.infer<typeof SettingsModalPropsSchema>
 
 export function SettingsModal({ isOpen, onClose, onOpenHelp }: SettingsModalProps) {
-  const { fontSize, theme, autoScroll, autoCollapseTools, chatMode, setFontSize, setTheme, setAutoScroll, setAutoCollapseTools, setChatMode } = useSettingsStore()
+  const { fontSize, theme, autoScroll, autoCollapseTools, chatMode, focusMode, blockedSites, setFontSize, setTheme, setAutoScroll, setAutoCollapseTools, setChatMode, setFocusMode, addBlockedSite, removeBlockedSite } = useSettingsStore()
   const [glowEnabled, setGlowEnabled] = useState<boolean>(true)
   const [agentVersion, setAgentVersion] = useState<string>('1.0.0')
+  const [newBlockedSite, setNewBlockedSite] = useState<string>('')
   const { sendMessage } = useSidePanelPortMessaging()
 
   // Select theme
@@ -216,6 +217,70 @@ export function SettingsModal({ isOpen, onClose, onOpenHelp }: SettingsModalProp
               {autoCollapseTools ? 'On' : 'Off'}
             </Button>
           </div>
+
+          {/* Focus Mode */}
+          <div className="flex items-center justify-between px-4 py-2 rounded-xl border border-border/50 bg-card">
+            <div className="flex items-center gap-2">
+              <ShieldOff className="w-3.5 h-3.5 text-orange-500" />
+              <p className="text-xs text-muted-foreground">Focus mode (block distracting sites)</p>
+            </div>
+            <Button
+              onClick={() => setFocusMode(!focusMode)}
+              variant="ghost"
+              size="sm"
+              className={`h-7 px-2 text-xs ${focusMode ? 'text-orange-500 font-semibold' : 'text-muted-foreground'}`}
+              aria-label={`${focusMode ? 'Disable' : 'Enable'} focus mode`}
+            >
+              {focusMode ? 'On' : 'Off'}
+            </Button>
+          </div>
+
+          {/* Blocked sites list (shown when focus mode is on) */}
+          {focusMode && (
+            <div className="px-4 py-3 rounded-xl border border-orange-200 bg-orange-50/50 dark:border-orange-900/30 dark:bg-orange-900/10 space-y-2">
+              <p className="text-xs font-medium text-orange-700 dark:text-orange-400">Blocked sites</p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newBlockedSite}
+                  onChange={e => setNewBlockedSite(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && newBlockedSite.trim()) {
+                      addBlockedSite(newBlockedSite.trim())
+                      setNewBlockedSite('')
+                    }
+                  }}
+                  placeholder="e.g. twitter.com"
+                  className="flex-1 text-xs px-2 py-1 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-orange-400"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 w-7 p-0 text-orange-500"
+                  onClick={() => { if (newBlockedSite.trim()) { addBlockedSite(newBlockedSite.trim()); setNewBlockedSite('') } }}
+                  aria-label="Add blocked site"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+              <div className="flex flex-wrap gap-1.5 mt-1">
+                {blockedSites.map(site => (
+                  <div key={site} className="flex items-center gap-1 text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 px-2 py-0.5 rounded-full">
+                    {site}
+                    <button
+                      type="button"
+                      onClick={() => removeBlockedSite(site)}
+                      className="hover:text-red-500 transition-colors"
+                      aria-label={`Remove ${site} from blocked list`}
+                    >
+                      <X className="w-2.5 h-2.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           
           </div>

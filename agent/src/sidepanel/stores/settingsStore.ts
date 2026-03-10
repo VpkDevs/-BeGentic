@@ -8,7 +8,9 @@ const SettingsSchema = z.object({
   theme: z.enum(['light', 'dark', 'gray']).default('light'),  // App theme
   autoScroll: z.boolean().default(true),  // Auto-scroll chat to bottom
   autoCollapseTools: z.boolean().default(false),  // Auto-collapse tool results
-  chatMode: z.boolean().default(false)  // Chat mode for Q&A (uses ChatAgent instead of BrowserAgent)
+  chatMode: z.boolean().default(false),  // Chat mode for Q&A (uses ChatAgent instead of BrowserAgent)
+  focusMode: z.boolean().default(false),  // Focus mode: block distracting sites
+  blockedSites: z.array(z.string()).default([])  // List of sites to block in focus mode
 })
 
 type Settings = z.infer<typeof SettingsSchema>
@@ -20,6 +22,9 @@ interface SettingsActions {
   setAutoScroll: (enabled: boolean) => void
   setAutoCollapseTools: (enabled: boolean) => void
   setChatMode: (enabled: boolean) => void
+  setFocusMode: (enabled: boolean) => void
+  addBlockedSite: (site: string) => void
+  removeBlockedSite: (site: string) => void
   resetSettings: () => void
 }
 
@@ -29,7 +34,9 @@ const initialState: Settings = {
   theme: 'light',
   autoScroll: true,
   autoCollapseTools: false,
-  chatMode: false
+  chatMode: false,
+  focusMode: false,
+  blockedSites: ['twitter.com', 'x.com', 'facebook.com', 'reddit.com', 'youtube.com', 'instagram.com', 'tiktok.com']
 }
 
 // Create the store with persistence
@@ -68,6 +75,30 @@ export const useSettingsStore = create<Settings & SettingsActions>()(
         set({ chatMode: enabled })
       },
       
+      setFocusMode: (enabled) => {
+        set({ focusMode: enabled })
+        // Persist focus mode state to chrome.storage for background script access
+        try {
+          chrome.storage?.local?.set({ 'nxtscape-focus-mode': enabled })
+        } catch { /* ignore in non-extension contexts */ }
+      },
+
+      addBlockedSite: (site) => {
+        const normalized = site.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0]
+        if (!normalized) return
+        set(state => ({
+          blockedSites: state.blockedSites.includes(normalized)
+            ? state.blockedSites
+            : [...state.blockedSites, normalized]
+        }))
+      },
+
+      removeBlockedSite: (site) => {
+        set(state => ({
+          blockedSites: state.blockedSites.filter(s => s !== site)
+        }))
+      },
+      
       resetSettings: () => {
         set(initialState)
         // Reset document styles
@@ -78,7 +109,7 @@ export const useSettingsStore = create<Settings & SettingsActions>()(
     }),
     {
       name: 'nxtscape-settings',  // localStorage key
-      version: 5,
+      version: 6,
       migrate: (persisted: any, version: number) => {
         // Migrate from v1 isDarkMode -> theme
         if (version === 1 && persisted) {
@@ -115,6 +146,14 @@ export const useSettingsStore = create<Settings & SettingsActions>()(
             autoScroll: typeof persisted.autoScroll === 'boolean' ? persisted.autoScroll : true,
             autoCollapseTools: typeof persisted.autoCollapseTools === 'boolean' ? persisted.autoCollapseTools : false,
             chatMode: false
+          } as Settings
+        }
+        // Migrate to v6 add focusMode and blockedSites
+        if (version === 5 && persisted) {
+          return {
+            ...persisted,
+            focusMode: false,
+            blockedSites: initialState.blockedSites
           } as Settings
         }
         return persisted as Settings

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react'
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { Textarea } from '@/sidepanel/components/ui/textarea'
 import { Button } from '@/sidepanel/components/ui/button'
 import { LazyTabSelector } from './LazyTabSelector'
@@ -9,11 +9,11 @@ import { useKeyboardShortcuts, useAutoResize } from '../hooks/useKeyboardShortcu
 import { useSidePanelPortMessaging } from '@/sidepanel/hooks'
 import { MessageType } from '@/lib/types/messaging'
 import { cn } from '@/sidepanel/lib/utils'
-import { Loader } from 'lucide-react'
+import { Loader, Mic, MicOff } from 'lucide-react'
 import { BrowserOSProvidersConfig, BrowserOSProvider } from '@/lib/llm/settings/browserOSTypes'
 import { ModeToggle } from './ModeToggle'
 // Tailwind classes used in ModeToggle; no separate CSS import
-import { SlashCommandPalette } from './SlashCommandPalette'
+import { SlashCommandPalette, type BuiltInCommand } from './SlashCommandPalette'
 import { useAgentsStore } from '@/newtab/stores/agentsStore'
 
 
@@ -35,6 +35,11 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
   const [providerOk, setProviderOk] = useState<boolean>(true)
   const [historyIndex, setHistoryIndex] = useState<number>(-1)
   const [draftBeforeHistory, setDraftBeforeHistory] = useState<string>('')
+
+  // Voice input state
+  const [isListening, setIsListening] = useState(false)
+  const recognitionRef = useRef<any>(null)
+  const voiceSupported = typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)
   
   const { upsertMessage, setProcessing } = useChatStore()
   const messages = useChatStore(state => state.messages)
@@ -271,6 +276,47 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
     toggleTabSelection(tabId)
   }
 
+  // Voice input: toggle speech recognition on/off
+  const toggleVoiceInput = useCallback(() => {
+    if (!voiceSupported) return
+
+    if (isListening) {
+      recognitionRef.current?.stop()
+      setIsListening(false)
+      return
+    }
+
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    const recognition = new SpeechRecognition()
+    recognition.continuous = false
+    recognition.interimResults = true
+    recognition.lang = navigator.language || 'en-US'
+
+    recognition.onstart = () => setIsListening(true)
+    recognition.onend = () => setIsListening(false)
+    recognition.onerror = () => setIsListening(false)
+
+    recognition.onresult = (event: any) => {
+      let finalTranscript = ''
+      let interimTranscript = ''
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const t = event.results[i][0].transcript
+        if (event.results[i].isFinal) finalTranscript += t
+        else interimTranscript += t
+      }
+      if (finalTranscript) {
+        setInput(prev => {
+          const sep = prev.trim() ? ' ' : ''
+          return prev + sep + finalTranscript.trim()
+        })
+        textareaRef.current?.focus()
+      }
+    }
+
+    recognitionRef.current = recognition
+    recognition.start()
+  }, [isListening, voiceSupported])
+
   const selectedContextTabs: BrowserTab[] = getContextTabs()
   
   // Keyboard shortcuts
@@ -405,9 +451,16 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
               {showSlashPalette && (
                 <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-24 bg-black/50">
                   <div className="w-full max-w-xl">
-                    <SlashCommandPalette
+                     <SlashCommandPalette
                       overlay
                       searchQuery={input}
+                      onSelectBuiltIn={(cmd: BuiltInCommand) => {
+                        // Submit the built-in command's preset prompt
+                        setInput('')
+                        setShowSlashPalette(false)
+                        submitTask(cmd.prompt)
+                        textareaRef.current?.focus()
+                      }}
                       onSelectAgent={(agentId) => {
                         const agent = agents.find(a => a.id === agentId)
                         if (!agent) return
@@ -462,6 +515,26 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
               >
                 <img src="assets/arrow_upward_alt.svg" alt="" aria-hidden="true" className="w-6 h-6 block pointer-events-none select-none" />
               </Button>
+
+              {/* Voice input button */}
+              {voiceSupported && !isProcessing && (
+                <Button
+                  type="button"
+                  onClick={toggleVoiceInput}
+                  size="sm"
+                  className={cn(
+                    'absolute right-14 bottom-3 h-8 w-8 p-0 rounded-full shadow-lg flex items-center justify-center transition-colors duration-200',
+                    isListening
+                      ? 'bg-red-500 hover:bg-red-600 text-white animate-pulse'
+                      : 'bg-muted hover:bg-muted/80 text-muted-foreground'
+                  )}
+                  variant="ghost"
+                  aria-label={isListening ? 'Stop voice input' : 'Start voice input'}
+                  title={isListening ? 'Stop listening' : 'Speak your message'}
+                >
+                  {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                </Button>
+              )}
             </div>
           </div>
         </form>
