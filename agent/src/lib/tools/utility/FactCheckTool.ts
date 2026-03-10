@@ -6,6 +6,9 @@ import { PubSub } from '@/lib/pubsub'
 import { HumanMessage, SystemMessage } from '@langchain/core/messages'
 import { invokeWithRetry } from '@/lib/utils/retryable'
 
+// Max characters of page content to fact-check (avoids token overload)
+const MAX_FACTCHECK_CHARS = 6000
+
 // Input schema
 const FactCheckInputSchema = z.object({
   tab_id: z.number().optional()
@@ -81,8 +84,8 @@ export class FactCheckTool {
         if (!pageContent.trim()) return toolError('Could not extract text from the page.')
 
         // Trim to avoid token overload
-        if (pageContent.length > 6000) {
-          pageContent = pageContent.slice(0, 6000) + '\n[Content truncated]'
+        if (pageContent.length > MAX_FACTCHECK_CHARS) {
+          pageContent = pageContent.slice(0, MAX_FACTCHECK_CHARS) + '\n[Content truncated]'
         }
 
         pageTitle = await page.title()

@@ -11,6 +11,15 @@ const READING_LIST_KEY = 'reading_list'
 // Max items in the reading list
 const MAX_ITEMS = 200
 
+/** Generate a UUID, with a fallback for environments without crypto.randomUUID */
+function generateId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  // Fallback: Date-based pseudo-unique ID
+  return `id-${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
 // Schema for a single reading list item
 const ReadingListItemSchema = z.object({
   id: z.string(),
@@ -93,7 +102,7 @@ export class ReadingListTool {
     }
 
     const newItem: ReadingListItem = {
-      id: crypto.randomUUID(),
+      id: generateId(),
       url: input.url,
       title: input.title ?? input.url,
       excerpt: input.excerpt ?? '',

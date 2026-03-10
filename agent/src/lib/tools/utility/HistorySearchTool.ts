@@ -9,6 +9,9 @@ import { invokeWithRetry } from '@/lib/utils/retryable'
 // Maximum number of history items to process
 const MAX_HISTORY_ITEMS = 500
 
+// Max history items to send to LLM after pre-filtering
+const MAX_LLM_HISTORY_ITEMS = 100
+
 // Input schema
 const HistorySearchInputSchema = z.object({
   query: z.string()
@@ -51,9 +54,19 @@ export class HistorySearchTool {
       // Calculate start time
       const startTime = Date.now() - input.days_back * 24 * 60 * 60 * 1000
 
-      // Fetch history from Chrome
+      // Stage 1: Use Chrome's built-in text search with keywords from the query for pre-filtering.
+      // Extract meaningful keywords (words with 3+ chars) for the Chrome search
+      const queryKeywords = input.query
+        .toLowerCase()
+        .split(/\s+/)
+        .filter(w => w.length >= 3)
+        .slice(0, 3)  // Use at most 3 keywords
+
+      // Try a keyword-based pre-filter first; fall back to fetching all if no keywords
+      const searchText = queryKeywords.length > 0 ? queryKeywords[0] : ''
+
       const historyItems = await chrome.history.search({
-        text: '',  // Empty string returns all items
+        text: searchText,
         startTime,
         maxResults: MAX_HISTORY_ITEMS
       })
@@ -72,7 +85,13 @@ export class HistorySearchTool {
           seen.add(item.url)
           return true
         })
-        .slice(0, MAX_HISTORY_ITEMS)
+        // Stage 2: Apply additional keyword filtering on title/URL before sending to LLM
+        .filter(item => {
+          if (queryKeywords.length === 0) return true
+          const combined = `${item.title ?? ''} ${item.url ?? ''}`.toLowerCase()
+          return queryKeywords.some(kw => combined.includes(kw))
+        })
+        .slice(0, MAX_LLM_HISTORY_ITEMS)
 
       if (cleanItems.length === 0) {
         return toolSuccess('No relevant browsing history found.')

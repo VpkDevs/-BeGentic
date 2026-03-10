@@ -6,6 +6,9 @@ import { PubSub } from '@/lib/pubsub'
 import { HumanMessage, SystemMessage } from '@langchain/core/messages'
 import { invokeWithRetry } from '@/lib/utils/retryable'
 
+// Max characters of page content to translate (avoids token overload)
+const MAX_TRANSLATION_CHARS = 8000
+
 // Input schema
 const TranslateInputSchema = z.object({
   tab_id: z.number().optional()
@@ -65,9 +68,9 @@ export class TranslateTool {
           return toolError('Could not extract text from the page.')
         }
 
-        // Limit to first 8000 chars to avoid token limits
-        if (sourceText.length > 8000) {
-          sourceText = sourceText.slice(0, 8000) + '\n\n[Content truncated for translation]'
+        // Limit to avoid token limits
+        if (sourceText.length > MAX_TRANSLATION_CHARS) {
+          sourceText = sourceText.slice(0, MAX_TRANSLATION_CHARS) + '\n\n[Content truncated for translation]'
         }
 
         const title = await page.title()

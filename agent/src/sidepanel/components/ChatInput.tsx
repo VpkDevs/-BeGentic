@@ -16,6 +16,39 @@ import { ModeToggle } from './ModeToggle'
 import { SlashCommandPalette, type BuiltInCommand } from './SlashCommandPalette'
 import { useAgentsStore } from '@/newtab/stores/agentsStore'
 
+// Web Speech API type declarations (not included in standard lib.dom.d.ts in some setups)
+interface SpeechRecognitionEvent extends Event {
+  resultIndex: number
+  results: SpeechRecognitionResultList
+}
+interface SpeechRecognitionResultList {
+  length: number
+  [index: number]: SpeechRecognitionResult
+}
+interface SpeechRecognitionResult {
+  isFinal: boolean
+  [index: number]: SpeechRecognitionAlternative
+}
+interface SpeechRecognitionAlternative {
+  transcript: string
+  confidence: number
+}
+interface SpeechRecognitionInstance extends EventTarget {
+  continuous: boolean
+  interimResults: boolean
+  lang: string
+  start(): void
+  stop(): void
+  onstart: ((event: Event) => void) | null
+  onend: ((event: Event) => void) | null
+  onerror: ((event: Event) => void) | null
+  onresult: ((event: SpeechRecognitionEvent) => void) | null
+}
+interface WindowWithSpeechRecognition extends Window {
+  SpeechRecognition?: new () => SpeechRecognitionInstance
+  webkitSpeechRecognition?: new () => SpeechRecognitionInstance
+}
+
 
 interface ChatInputProps {
   isConnected: boolean
@@ -38,8 +71,9 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
 
   // Voice input state
   const [isListening, setIsListening] = useState(false)
-  const recognitionRef = useRef<any>(null)
-  const voiceSupported = typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)
+  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
+  const typedWindow = (typeof window !== 'undefined' ? window : null) as WindowWithSpeechRecognition | null
+  const voiceSupported = typedWindow !== null && (!!typedWindow.SpeechRecognition || !!typedWindow.webkitSpeechRecognition)
   
   const { upsertMessage, setProcessing } = useChatStore()
   const messages = useChatStore(state => state.messages)
@@ -286,8 +320,9 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
       return
     }
 
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-    const recognition = new SpeechRecognition()
+    const SpeechRecognitionCtor = typedWindow?.SpeechRecognition || typedWindow?.webkitSpeechRecognition
+    if (!SpeechRecognitionCtor) return
+    const recognition = new SpeechRecognitionCtor()
     recognition.continuous = false
     recognition.interimResults = true
     recognition.lang = navigator.language || 'en-US'
@@ -296,7 +331,7 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
     recognition.onend = () => setIsListening(false)
     recognition.onerror = () => setIsListening(false)
 
-    recognition.onresult = (event: any) => {
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
       let finalTranscript = ''
       let interimTranscript = ''
       for (let i = event.resultIndex; i < event.results.length; i++) {
